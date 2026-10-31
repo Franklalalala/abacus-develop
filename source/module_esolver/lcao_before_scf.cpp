@@ -32,9 +32,13 @@
 #include "module_io/read_wfc_nao.h"
 #include "module_io/write_elecstat_pot.h"
 #include "module_io/write_wfc_nao.h"
+#include "module_hamilt_lcao/module_hcontainer/read_hcontainer.h"
+#include "module_hsolver/hsolver_lcao.h"
 #ifdef __EXX
 #include "module_io/restart_exx_csr.h"
 #endif
+
+#include <fstream>
 
 namespace ModuleESolver
 {
@@ -345,6 +349,49 @@ void ESolver_KS_LCAO<TK, TR>::before_scf(UnitCell& ucell, const int istep)
 
         ModuleBase::timer::tick("ESolver_KS_LCAO", "before_scf");
         return;
+    }
+
+    // init_chg hr: diagonalize the H(R) read from read_file_dir once and start the SCF from the
+    // charge density of that solution; the first SCF step builds H from this density
+    if (istep == 0 && PARAM.inp.init_chg == "hr")
+    {
+        if (PARAM.inp.nspin == 2)
+        {
+            ModuleBase::WARNING_QUIT("ESolver_KS_LCAO::before_scf", "init_chg hr does not support nspin 2");
+        }
+        // hrs1_nao.csr as read by init_chg hr of the restart_dh branch, or the H(R) file that
+        // out_mat_hs2 writes in this version
+        std::string hrfile = PARAM.globalv.global_readin_dir + "/hrs1_nao.csr";
+        if (!std::ifstream(hrfile).good())
+        {
+            hrfile = PARAM.globalv.global_readin_dir + "/data-HR-sparse_SPIN0.csr";
+        }
+        if (!std::ifstream(hrfile).good())
+        {
+            ModuleBase::WARNING_QUIT("ESolver_KS_LCAO::before_scf",
+                                     "init_chg hr: no hrs1_nao.csr or data-HR-sparse_SPIN0.csr in read_file_dir");
+        }
+        GlobalV::ofs_running << " init_chg hr: H(R) read from " << hrfile << std::endl;
+
+        hamilt::HamiltLCAO<TK, TR>* p_ham_lcao = dynamic_cast<hamilt::HamiltLCAO<TK, TR>*>(this->p_hamilt);
+        hamilt::HContainer<TR>* hR = p_ham_lcao->getHR();
+        hamilt::Read_HContainer<TR> reader_hr(hR, hrfile, PARAM.globalv.nlocal, &ucell);
+        reader_hr.read();
+
+        // this one diagonalization uses the H(R) just read: the operators build S(R) only and
+        // fold H(R), S(R) into H(k), S(k)
+        dynamic_cast<hamilt::OperatorLCAO<TK, TR>*>(p_ham_lcao->getOperator())->set_hr_done(true);
+        hsolver::HSolverLCAO<TK> hsolver_lcao_obj(&(this->pv), PARAM.inp.ks_solver);
+        hsolver_lcao_obj.solve(this->p_hamilt, this->psi[0], this->pelec, false);
+
+        Symmetry_rho srho_hr;
+        for (int is = 0; is < PARAM.inp.nspin; is++)
+        {
+            srho_hr.begin(is, *(this->pelec->charge), this->pw_rho, ucell.symm);
+        }
+        elecstate::cal_ux(ucell);
+        this->pelec->pot->update_from_charge(this->pelec->charge, &ucell);
+        this->p_hamilt->refresh();
     }
 
     // the electron charge density should be symmetrized,

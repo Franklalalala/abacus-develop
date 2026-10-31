@@ -93,7 +93,9 @@ void OperatorLCAO<TK, TR>::init(const int ik_in) {
         // cal_type=lcao_overlap refer to overlap matrix operators, which are
         // only rely on stucture, and not changed during SCF
 
-        if (!this->hr_done) {
+        // S(R) is needed even when H(R) is already done (init_chg hr reads H(R) only);
+        // the overlap operator keeps S(R) after its first build (SR_fixed_done)
+        {
             // update SR first
             // in cal_type=lcao_overlap, SR should be updated by each sub-chain
             // nodes
@@ -222,8 +224,9 @@ void OperatorLCAO<TK, TR>::init(const int ik_in) {
     if (this->next_op
         != nullptr) { // it is not the last node, loop next init() function
         // pass HR status to next node and than set HR status of this node to
-        // done
-        if (!this->hr_done) {
+        // done; a done H(R) (init_chg hr) is passed on too, so that the later
+        // nodes do not add their terms to it
+        {
             dynamic_cast<OperatorLCAO<TK, TR>*>(this->next_op)->hr_done
                 = this->hr_done;
         }

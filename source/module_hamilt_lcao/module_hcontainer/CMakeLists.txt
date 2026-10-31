@@ -7,6 +7,7 @@ list(APPEND objects
     output_hcontainer.cpp
     func_folding.cpp
     transfer.cpp
+    read_hcontainer.cpp
     func_transfer.cpp
 )
 

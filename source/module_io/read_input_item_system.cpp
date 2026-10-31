@@ -508,7 +508,7 @@ void ReadInput::item_system()
     }
     {
         Input_Item item("init_chg");
-        item.annotation = "start charge is from 'atomic' or file";
+        item.annotation = "start charge is from 'atomic', file, or 'hr' (H(R) read from read_file_dir)";
         read_sync_string(input.init_chg);
         item.reset_value = [](const Input_Item& item, Parameter& para) {
             if (para.input.calculation == "get_pchg" || para.input.calculation == "get_wf")
@@ -525,7 +525,7 @@ void ReadInput::item_system()
             }
         };
         item.check_value = [](const Input_Item& item, const Parameter& para) {
-            const std::vector<std::string> init_chgs = {"atomic", "file", "wfc", "auto"};
+            const std::vector<std::string> init_chgs = {"atomic", "file", "wfc", "auto", "hr"};
             if (std::find(init_chgs.begin(), init_chgs.end(), para.input.init_chg) == init_chgs.end())
             {
                 const std::string warningstr = nofound_str(init_chgs, "init_chg");

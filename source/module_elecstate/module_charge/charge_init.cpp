@@ -178,7 +178,9 @@ void Charge::init_rho(elecstate::efermi& eferm_iout,
         }
     }
 
-    if (PARAM.inp.init_chg == "atomic" || read_error) // mohan add 2007-10-17
+    // init_chg hr starts from atomic charge here; before_scf replaces it with the
+    // charge of the H(R) read from file
+    if (PARAM.inp.init_chg == "atomic" || PARAM.inp.init_chg == "hr" || read_error) // mohan add 2007-10-17
     {
         if (read_error)
         {
@@ -190,7 +192,7 @@ void Charge::init_rho(elecstate::efermi& eferm_iout,
     // wenfei 2021-7-29 : initial tau = 3/5 rho^2/3, Thomas-Fermi
     if (XC_Functional::get_func_type() == 3 || XC_Functional::get_func_type() == 5)
     {
-        if (PARAM.inp.init_chg == "atomic" || read_kin_error)
+        if (PARAM.inp.init_chg == "atomic" || PARAM.inp.init_chg == "hr" || read_kin_error)
         {
             if (read_kin_error)
             {

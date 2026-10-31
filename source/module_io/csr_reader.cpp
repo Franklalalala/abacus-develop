@@ -5,6 +5,21 @@
 namespace ModuleIO
 {
 
+namespace
+{
+int count_fields(const std::string& line)
+{
+    std::istringstream is(line);
+    std::string field;
+    int n = 0;
+    while (is >> field)
+    {
+        ++n;
+    }
+    return n;
+}
+} // namespace
+
 // constructor
 template <typename T>
 csrFileReader<T>::csrFileReader(const std::string& filename) : FileReader(filename)
@@ -40,11 +55,30 @@ void csrFileReader<T>::parseFile()
     for (int i = 0; i < numberOfR; i++)
     {
         std::vector<int> RCoord(3);
-        int nonZero;
+        int nonZero = 0;
 
+        // R header "Rx Ry Rz nnz". write_HS_sparse writes only this line for an R whose H block is
+        // empty (nnz = 0); older writers followed it with two blank lines and a row of zeros, which
+        // are skipped here as lines that are not a 4-field header.
         readLine();
+        int skipped = 0;
+        while (count_fields(ss.str()) != 4)
+        {
+            if (++skipped > 3)
+            {
+                ModuleBase::WARNING_QUIT("csrFileReader::parseFile", "expected an R header line \"Rx Ry Rz nnz\"");
+            }
+            readLine();
+        }
         ss >> RCoord[0] >> RCoord[1] >> RCoord[2] >> nonZero;
         RCoordinates.push_back(RCoord);
+
+        SparseMatrix<T> matrix(matrixDimension, matrixDimension);
+        if (nonZero == 0)
+        {
+            sparse_matrices.push_back(matrix);
+            continue;
+        }
 
         std::vector<T> csr_values(nonZero);
         std::vector<int> csr_col_ind(nonZero);
@@ -69,7 +103,6 @@ void csrFileReader<T>::parseFile()
             ss >> csr_row_ptr[i];
         }
 
-        SparseMatrix<T> matrix(matrixDimension, matrixDimension);
         matrix.readCSR(csr_values, csr_col_ind, csr_row_ptr);
         sparse_matrices.push_back(matrix);
     }

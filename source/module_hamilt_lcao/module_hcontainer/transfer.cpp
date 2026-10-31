@@ -267,8 +267,15 @@ void HTransPara<T>::unpack_data(int irank, const T* values)
                 r_index[2] = *ap_data++;
                 if (size_row > 0 && size_col > 0)
                 {
-                    T* matrix_pointer = this->hr->data(atom_i, atom_j, r_index);
-                    BlasConnector::axpy(size_row * size_col, alpha, value_data, 1, matrix_pointer, 1);
+                    // the serial side packs every block whose rows and columns this rank owns;
+                    // a block the parallel container does not hold (pair or R outside its
+                    // layout) is skipped here instead of being created or written through nullptr
+                    const AtomPair<T>* ap = this->hr->find_pair(atom_i, atom_j);
+                    if (ap != nullptr && ap->find_R(r_index[0], r_index[1], r_index[2]) != -1)
+                    {
+                        T* matrix_pointer = this->hr->data(atom_i, atom_j, r_index);
+                        BlasConnector::axpy(size_row * size_col, alpha, value_data, 1, matrix_pointer, 1);
+                    }
                     value_data += size_row * size_col;
                 }
             }
